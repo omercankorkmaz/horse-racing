@@ -1,0 +1,31 @@
+{
+  "name": "horse-racing-case-study-3d-final",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest --run",
+    "test:ui": "vitest",
+    "e2e": "cypress run",
+    "e2e:open": "cypress open"
+  },
+  "dependencies": {
+    "vue": "^3.4.38",
+    "vuex": "^4.1.0",
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "@testing-library/vue": "^8.1.0",
+    "@types/node": "^22.5.1",
+    "@vitejs/plugin-vue": "^5.1.2",
+    "cypress": "^13.13.2",
+    "jsdom": "^25.0.1",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.3",
+    "vitest": "^2.1.1",
+    "vue-tsc": "^2.1.6"
+  }
+}

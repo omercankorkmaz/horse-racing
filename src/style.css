@@ -1,0 +1,18 @@
+
+:root { --track-height: 32px; --track-gap: 10px; }
+.container { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+.grid { display: grid; grid-template-columns: 1fr 360px; gap: 1rem; }
+@media (max-width: 960px) { .grid { grid-template-columns: 1fr; } }
+.results {
+  max-height: 520px; overflow: auto;
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: .5rem; padding: .5rem .75rem;
+  background: var(--pico-card-background-color);
+}
+.code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .825rem; white-space: pre-wrap; }
+.track { position: relative; height: var(--track-height); background: var(--pico-muted-border-color);
+  border-radius: 999px; overflow: hidden; margin-bottom: var(--track-gap); }
+.horse { position: absolute; top: 3px; left: 0; width: 26px; height: 26px; border-radius: 50%;
+  border: 2px solid rgba(0,0,0,.2); transition-property: transform; will-change: transform; }
+.flag { position: absolute; right: 0; top: 0; height: 100%; width: 4px; background: var(--pico-primary); }
