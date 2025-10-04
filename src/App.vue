@@ -18,8 +18,8 @@ import GeneratedHorses from './components/GeneratedHorses.vue'
       </aside>
       <section>
         <Controls />
-        <ScheduleTable style="margin-top:1rem;" />
         <StraightRace />
+        <ScheduleTable style="margin-top:1rem;" />
       </section>
       <aside>
         <ResultsPanel />
