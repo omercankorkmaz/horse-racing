@@ -5,13 +5,15 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
-
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 
 const container = ref<HTMLDivElement | null>(null)
 const store = useStore()
 const roundCfg = computed(()=> store.getters.currentRoundConfig)
 const horses = computed(()=> store.state.horses)
 const status = computed(()=> store.state.status)
+
+const colorOf = (id:number)=> horses.value.find(h=>h.id===id)?.color
 
 let renderer: THREE.WebGLRenderer
 let labelRenderer: CSS2DRenderer
@@ -26,22 +28,74 @@ const START_X = -TRACK_LEN/2
 const END_X   =  TRACK_LEN/2
 const LANE_GAP = 0.7
 
+let BASE_LIFT_Y = 0  // tüm atlara uygulanacak sabit yer-ofseti
+
+// ileri yön ayarı: modelin gerçek "ileri" ekseni (GLB'ine göre)
+// çoğu model kameraya bakıyorsa -Z, bazıları +Z olur. Gerekirse değiştir.
+const MODEL_FWD = new THREE.Vector3(0,0,1)
+const ROT_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0))
+
+// durumlar
 let horseObjs: Record<number, THREE.Object3D> = {}
 let startTime = 0
 let durations: Record<number, number> = {}
 let finished: Set<number> = new Set()
 let runningRound = -1
 
-// GLTF model + kapsül fallback
+// animasyon yapısı
+const clock = new THREE.Clock()
 const loader = new GLTFLoader()
-let baseHorse: THREE.Object3D | null = null
+let baseGltf: { scene: THREE.Object3D, animations: THREE.AnimationClip[] } | null = null
+let mixers: Record<number, THREE.AnimationMixer> = {}
+let actions: Record<number, THREE.AnimationAction> = {}
+let timeScales: Record<number, number> = {}
 
-// MODEL İLERİ EKSENİ: şu an model "bize" bakıyordu => genelde -Z.
-// Bunu +X'e döndüreceğiz ki soldan sağa baksın.
-const MODEL_FWD = new THREE.Vector3(0,0,-1)
-const ROT_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.PI/2, 0))
+// yardımcılar
+const _box = new THREE.Box3()
+function setOnGround(obj: THREE.Object3D, yPad = 0.01) {
+  _box.setFromObject(obj)
+  const lift = -_box.min.y + yPad
+  obj.position.y = lift
+}
 
-// ───────────────────────── helpers
+function attachLabel(target: THREE.Object3D, numText: string){
+  const color = horses.value.find(h=>h.id=== Number(numText))?.color
+  const div = document.createElement('div')
+  div.textContent = numText
+  div.style.padding = '2px 6px'
+  div.style.borderRadius = '6px'
+  div.style.background = `${color}60`
+  div.style.color = '#fff'
+  div.style.fontSize = '12px'
+  div.style.whiteSpace = 'nowrap'
+  div.style.backdropFilter = 'blur(2px)'
+
+  _box.setFromObject(target)
+  const h = Math.max(0.8, _box.max.y - _box.min.y)
+  const label = new CSS2DObject(div)
+  label.position.set(0, h / 3, 0)
+  target.add(label)
+}
+function removeLabelsFrom(obj: THREE.Object3D) {
+  obj.traverse((n: any) => {
+    if (n instanceof CSS2DObject || n?.isCSS2DObject) {
+      const el: HTMLElement | undefined = (n as any).element
+      n.removeFromParent()
+      if (el && el.parentElement) el.parentElement.removeChild(el)
+    }
+  })
+}
+function removeAllSceneLabels() {
+  scene.traverse((n: any) => {
+    if (n instanceof CSS2DObject || n?.isCSS2DObject) {
+      const el: HTMLElement | undefined = (n as any).element
+      n.removeFromParent()
+      if (el && el.parentElement) el.parentElement.removeChild(el)
+    }
+  })
+  labelRenderer?.domElement && (labelRenderer.domElement.innerHTML = '')
+}
+
 function addLights(){
   const hemi = new THREE.HemisphereLight(0xffffff, 0x223344, 0.6)
   scene.add(hemi)
@@ -53,7 +107,7 @@ function addLights(){
 }
 
 function buildStraightTrack(lanes: number){
-  // zemin (y=0 düzleminde)
+  // zemin
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(60, Math.max(8, lanes*LANE_GAP*3)),
     new THREE.MeshStandardMaterial({ color: 0x14301a })
@@ -104,61 +158,38 @@ function buildStraightTrack(lanes: number){
   finBar.keep = true
   scene.add(finBar)
 
-  
   // 🟩 yeşil start bayrağı
   const flagMatStart = new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-  const flagGeo = new THREE.PlaneGeometry(.5, 1)
+  const flagGeo = new THREE.BoxGeometry(0.5, 0.8, 0.02)
   const flagStart = new THREE.Mesh(flagGeo, flagMatStart)
-  flagStart.position.set(START_X, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
-//   flagStart.rotation.y = Math.PI / 2  // kenardan baksın
+  flagStart.position.set(START_X - 0.3, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
+  flagStart.rotation.y = Math.PI / 2
+  // @ts-ignore
+  flagStart.keep = true
   scene.add(flagStart)
 
   // 🟥 kırmızı finish bayrağı
   const flagMatEnd = new THREE.MeshStandardMaterial({ color: 0xff0000 })
   const flagEnd = new THREE.Mesh(flagGeo, flagMatEnd)
-  flagEnd.position.set(END_X, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
-//   flagEnd.rotation.y = -Math.PI / 2
+  flagEnd.position.set(END_X + 0.3, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
+  flagEnd.rotation.y = -Math.PI / 2
+  // @ts-ignore
+  flagEnd.keep = true
   scene.add(flagEnd)
 
-  // istersen direk ekle:
+  // direkler
   const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8)
   const poleMat = new THREE.MeshStandardMaterial({ color: 0x888888 })
-
   const poleStart = new THREE.Mesh(poleGeo, poleMat)
-  poleStart.position.set(START_X, 0.6, (lanes * LANE_GAP) / 2)
+  poleStart.position.set(START_X - 0.3, 0.6, (lanes * LANE_GAP) / 2 + 0.2)
+  // @ts-ignore
+  poleStart.keep = true
   scene.add(poleStart)
-
   const poleEnd = new THREE.Mesh(poleGeo, poleMat)
-  poleEnd.position.set(END_X, 0.6, (lanes * LANE_GAP) / 2)
+  poleEnd.position.set(END_X + 0.3, 0.6, (lanes * LANE_GAP) / 2 + 0.2)
+  // @ts-ignore
+  poleEnd.keep = true
   scene.add(poleEnd)
-}
-
-// Modeli piste “oturtmak” için bounding box’a göre Y ayarı
-const _box = new THREE.Box3()
-function setOnGround(obj: THREE.Object3D, yPad = 0.01) {
-  _box.setFromObject(obj)
-  const lift = -_box.min.y + yPad // tabanı y=0’a getir
-  obj.position.y = lift
-}
-
-// Label ekle (sadece sayı)
-function attachLabel(target: THREE.Object3D, numText: string){
-  const div = document.createElement('div')
-  div.textContent = numText          // ← "20" gibi
-  div.style.padding = '2px 6px'
-  div.style.borderRadius = '6px'
-  div.style.background = 'rgba(0,0,0,.55)'
-  div.style.color = '#fff'
-  div.style.fontSize = '12px'
-  div.style.whiteSpace = 'nowrap'
-  div.style.backdropFilter = 'blur(2px)'
-
-  // label yüksekliğini modele göre ayarlayalım:
-  _box.setFromObject(target)
-  const h = Math.max(0.8, _box.max.y - _box.min.y)
-  const label = new CSS2DObject(div)
-  label.position.set(0, h + 0.15, 0) // başın biraz üstü
-  target.add(label)
 }
 
 function initThree(){
@@ -208,29 +239,36 @@ function onResize(){
 }
 
 function clearRound(){
-  // önce etiketleri sök
+  // animasyonları kapat
+  Object.values(actions).forEach(a=> a?.stop())
+  Object.values(mixers).forEach(m=> m.stopAllAction())
+  actions = {}
+  mixers = {}
+
+  // etiketleri ve atları sök
   Object.values(horseObjs).forEach(o => removeLabelsFrom(o))
-
-  // sonra atları sahneden kaldır
   Object.values(horseObjs).forEach(o => scene.remove(o))
-
   horseObjs = {}
+
   durations = {}
   finished = new Set()
   runningRound = -1
 
-  // tüm sahneyi süpür (olası sızan etiketler için)
-  removeAllSceneLabels(scene, labelRenderer)
+  // sızan label varsa temizle
+  removeAllSceneLabels()
 }
 
 function preloadHorse(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    if (baseHorse) return resolve()
-    loader.load('src/models/animated-horse-1k.glb', (gltf) => {
-        console.log(gltf)
-      baseHorse = gltf.scene
-      baseHorse.traverse((c:any)=>{ if (c.isMesh) { c.castShadow = true; c.receiveShadow = true } })
-      baseHorse.scale.set(0.075,0.075,0.075)
+    if (baseGltf) return resolve()
+    loader.load('src/models/horse.glb', (gltf) => {
+      baseGltf = { scene: gltf.scene, animations: gltf.animations || [] }
+      gltf.scene.traverse((c:any)=>{ if (c.isMesh) { c.castShadow = true; c.receiveShadow = true } })
+        // 🔧 taban ofsetini 1 kez ölç
+    baseHorse.updateWorldMatrix(true, true)
+    const bbox = new THREE.Box3().setFromObject(baseHorse)
+    BASE_LIFT_Y = -bbox.min.y + 0.01   // 0.01: hafif pay
+
       resolve()
     }, undefined, reject)
   })
@@ -240,35 +278,56 @@ function spawnHorses(ids: number[]){
   clearRound()
   const lanes = ids.length
 
-  // zemin/çizgiler dursun
+  // Pisti koru (keep:true) – sahneyi tazele
   scene.children = scene.children.filter((obj:any)=> obj.keep === true)
   addLights()
 
-  if (!baseHorse){
-    // Fallback: kapsül (tek renk), yere oturt
-    const geom = new THREE.CapsuleGeometry(0.25, 0.7, 6, 12)
-    const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd })
+  if (baseGltf) {
     ids.forEach((id, i)=>{
-      const mesh = new THREE.Mesh(geom, mat)
-      mesh.castShadow = true
+      const horse = SkeletonUtils.clone(baseGltf!.scene) as THREE.Object3D
       const z = (i - (lanes-1)/2) * LANE_GAP
-      mesh.position.set(START_X, 0, z)
-      setOnGround(mesh)                 // ← yere tam otur
-      scene.add(mesh)
-      attachLabel(mesh, String(id))     // ← sadece sayı
-      horseObjs[id] = mesh
+        horse.position.set(START_X, BASE_LIFT_Y, z)   // ← sabit
+        scene.add(horse)
+        attachLabel(horse, String(id))
+        horseObjs[id] = horse
+
+        const quatToX = new THREE.Quaternion()
+  .setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
+  .multiply(ROT_FIX)
+horse.quaternion.copy(quatToX)
+
+      // Mixer + Action
+      const mixer = new THREE.AnimationMixer(horse)
+      mixers[id] = mixer
+
+      const clips = baseGltf!.animations || []
+      let clip =
+        THREE.AnimationClip.findByName(clips, 'Run') ||
+        THREE.AnimationClip.findByName(clips, 'Gallop') ||
+        clips[0]
+
+      if (clip) {
+        const action = mixer.clipAction(clip)
+        action.setLoop(THREE.LoopRepeat)
+        const cond = horses.value.find(h=>h.id===id)?.condition ?? 50
+        timeScales[id] = 0.9 + (cond/100) * 0.6 // 0.9..1.5
+        action.play()
+        actions[id] = action
+      }
     })
     return
   }
 
+  // GLB yoksa kapsül fallback (tek renk, labels with id)
+  const geom = new THREE.CapsuleGeometry(0.25, 0.7, 6, 12)
+  const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd })
   ids.forEach((id, i)=>{
-    const horse = baseHorse!.clone(true)
     const z = (i - (lanes-1)/2) * LANE_GAP
-    horse.position.set(START_X, 0, z)
-    setOnGround(horse)                  // ← yere tam otur
-    scene.add(horse)
-    attachLabel(horse, String(id))      // ← sadece sayı
-    horseObjs[id] = horse
+    // kapsülün boyuna göre küçük sabit: 0.35 iyi durur
+    mesh.position.set(START_X, 0.35, z)
+    scene.add(mesh)
+    attachLabel(mesh, String(id))
+    horseObjs[id] = mesh
   })
 }
 
@@ -278,11 +337,22 @@ function computeDurations(distance: number, ids: number[]){
     const speed = Math.max(10, 14 + (cond/100)*2 + (Math.random()*1.2-0.6))
     const timeSec = distance / speed
     durations[id] = Math.round(timeSec * 1000)
+    // anim tempo:
+    timeScales[id] = 0.9 + (cond/100) * 0.6
   })
 }
 
 function animate(){
   frameId = requestAnimationFrame(animate)
+  const dt = clock.getDelta()
+  // mixer'ları güncelle
+  Object.entries(mixers).forEach(([sid, mixer])=>{
+    const id = Number(sid)
+    const a = actions[id]
+    if (a) a.timeScale = timeScales[id] ?? 1
+    mixer.update(dt)
+  })
+
   const now = performance.now()
   if (runningRound > 0 && roundCfg.value && status.value === 'running'){
     const ids = roundCfg.value.horses
@@ -293,14 +363,24 @@ function animate(){
       const x = THREE.MathUtils.lerp(START_X, END_X, t)
       obj.position.x = x
 
-      // SAĞA BAK: (MODEL_FWD -> +X)
-      const quatToX = new THREE.Quaternion().setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
-      quatToX.multiply(ROT_FIX)
-      obj.quaternion.slerp(quatToX, 0.35)
+      // açı zaten spawn’da kilitleniyor; istersen slerp yerine sabit:
+      // const quatToX = new THREE.Quaternion().setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
+      // quatToX.multiply(ROT_FIX)
+      // obj.quaternion.copy(quatToX)
 
       if (t >= 1 && !finished.has(id)){
         finished.add(id)
+        actions[id]?.fadeOut(0.2)
         if (finished.size === ids.length){
+          // tüm atlar bitirdi: animleri kapat, temizle, bir sonraki raunda geç
+          Object.values(actions).forEach(a=> a?.fadeOut(0.3))
+          Object.values(mixers).forEach(m=> m.stopAllAction())
+          actions = {}
+          mixers = {}
+          removeAllSceneLabels()
+          Object.values(horseObjs).forEach(o => scene.remove(o))
+          horseObjs = {}
+
           const finishes = ids.map(hid => ({ horseId: hid, timeMs: durations[hid] })).sort((a,b)=>a.timeMs-b.timeMs)
           store.commit('APPEND_RESULT', { round: roundCfg.value.round, distance: roundCfg.value.distance, finishes })
           store.commit('ADVANCE_ROUND')
@@ -308,9 +388,6 @@ function animate(){
             store.commit('SET_STATUS', 'finished')
           } else {
             const next = store.getters.currentRoundConfig
-            removeAllSceneLabels(scene, labelRenderer)  // eski etiketleri yok et
-            Object.values(horseObjs).forEach(o => scene.remove(o)) // eski atları da temizle
-            horseObjs = {}
             spawnHorses(next.horses)
             computeDurations(next.distance, next.horses)
             startTime = performance.now()
@@ -338,29 +415,6 @@ async function startVisualRound(){
   runningRound = roundCfg.value.round
 }
 
-function removeLabelsFrom(obj: THREE.Object3D) {
-  obj.traverse((n: any) => {
-    // CSS2DObject olup olmadığını kontrol et
-    if (n instanceof CSS2DObject || n?.isCSS2DObject) {
-      const el: HTMLElement | undefined = (n as any).element
-      n.removeFromParent()
-      if (el && el.parentElement) el.parentElement.removeChild(el) // DOM’dan da sök
-    }
-  })
-}
-
-function removeAllSceneLabels(scene: THREE.Scene, labelRenderer?: any) {
-  scene.traverse((n: any) => {
-    if (n instanceof CSS2DObject || n?.isCSS2DObject) {
-      const el: HTMLElement | undefined = (n as any).element
-      n.removeFromParent()
-      if (el && el.parentElement) el.parentElement.removeChild(el)
-    }
-  })
-  // emniyet kemeri: renderer’ın kökünü de boşalt
-  if (labelRenderer?.domElement) labelRenderer.domElement.innerHTML = ''
-}
-
 watch(()=> status.value, (nv)=>{ if (nv === 'running') startVisualRound() })
 watch(()=> roundCfg.value?.round, ()=>{ if (status.value === 'running' && roundCfg.value) startVisualRound() })
 
@@ -374,6 +428,10 @@ onBeforeUnmount(()=>{
 
 <template>
   <article>
+    <header>
+      <h3>Düz Pist (Çok Şeritli)</h3>
+      <p>GLB animasyonlu atlar soldan sağa koşar. Etiket: sadece numara.</p>
+    </header>
     <div ref="container" style="position:relative;width:100%;height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--pico-muted-border-color)"></div>
   </article>
 </template>
