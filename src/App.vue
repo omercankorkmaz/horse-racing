@@ -1,8 +1,6 @@
 
 <script lang="ts" setup>
 import Controls from './components/Controls.vue'
-import ThreeRace from './components/ThreeRace.vue'
-import HorseTrack from './components/HorseTrack.vue'
 import ScheduleTable from './components/ScheduleTable.vue'
 import ResultsPanel from './components/ResultsPanel.vue'
 import StraightRace from './components/StraightRace.vue'

@@ -9,6 +9,7 @@ export type State = {
   currentRound: number
   results: RaceResult[]
   status: 'idle' | 'scheduled' | 'running' | 'finished'
+  paused: boolean
 }
 
 const roundDistances = [1200, 1400, 1600, 1800, 2000, 2200]
@@ -28,7 +29,7 @@ function makeSchedule(horses: Horse[]): RoundConfig[] {
 }
 
 export const store = createStore<State>({
-  state: (): State => ({ horses: [], schedule: [], currentRound: 0, results: [], status: 'idle' }),
+  state: (): State => ({ horses: [], schedule: [], currentRound: 0, results: [], status: 'idle', paused: false }),
   getters: {
     roundDistances: () => roundDistances,
     currentRoundConfig: (s)=> s.schedule[s.currentRound] || null,
@@ -39,7 +40,8 @@ export const store = createStore<State>({
     SET_SCHEDULE(s, schedule: RoundConfig[]) { s.schedule = schedule; s.status='scheduled'; s.results=[]; s.currentRound=0 },
     SET_STATUS(s, status: State['status']) { s.status = status },
     APPEND_RESULT(s, res: RaceResult) { s.results.push(res) },
-    ADVANCE_ROUND(s) { s.currentRound += 1 }
+    ADVANCE_ROUND(s) { s.currentRound += 1 },
+    SET_PAUSED(s, v: boolean) { s.paused = v }
   },
   actions: {
     generate({ commit }) {

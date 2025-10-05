@@ -217,15 +217,53 @@ function initThree(){
   container.value!.appendChild(labelRenderer.domElement)
 
   controls = new OrbitControls(camera, renderer.domElement)
-  controls.enableDamping = true
+  controls.enableDamping = false
+  controls.enableZoom = false
   controls.target.set(0, 0, 0)
   controls.update()
 
   addLights()
   buildStraightTrack( (roundCfg.value?.horses.length ?? 10) )
 
+  attachFixedWheelZoom()
+
   window.addEventListener('resize', onResize)
   animate()
+}
+let onWheelHandler: ((ev: WheelEvent) => void) | null = null
+const ZOOM_UNITS_PER_NOTCH = 0.01
+function attachFixedWheelZoom() {
+  if (!renderer || !camera || !controls) return
+
+  const onWheel = (ev: WheelEvent) => {
+    // Delta’yı sınırlayıp tekdüze bir adım elde ediyoruz
+    const d = THREE.MathUtils.clamp(ev.deltaY, -200, 200)
+    const step = -d * ZOOM_UNITS_PER_NOTCH
+
+    // Kameranın baktığı doğrultuda ileri/geri hareket
+    const dir = new THREE.Vector3()
+    camera.getWorldDirection(dir).normalize()
+    const move = dir.multiplyScalar(step)
+
+    camera.position.add(move)
+    controls.target.add(move)
+    controls.update()
+
+    // (opsiyonel) etiket/gösterge güncellemelerin varsa burada çağır
+    // updateLabelPositions()
+    // updateLabelScales()
+    // updateSpeedLabelPositions()
+    // updateSpeedLabelScales()
+
+    // render döngün sürekli çalışmıyorsa tek kare çiz:
+    // renderer.render(scene, camera)
+
+    // trackpad/scroll geri kaymasını engelle
+    ev.preventDefault()
+  }
+
+  renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
+  onWheelHandler = onWheel
 }
 
 function onResize(){
@@ -264,10 +302,7 @@ function preloadHorse(): Promise<void> {
     loader.load('src/models/horse.glb', (gltf) => {
       baseGltf = { scene: gltf.scene, animations: gltf.animations || [] }
       gltf.scene.traverse((c:any)=>{ if (c.isMesh) { c.castShadow = true; c.receiveShadow = true } })
-        // 🔧 taban ofsetini 1 kez ölç
-    baseHorse.updateWorldMatrix(true, true)
-    const bbox = new THREE.Box3().setFromObject(baseHorse)
-    BASE_LIFT_Y = -bbox.min.y + 0.01   // 0.01: hafif pay
+      baseGltf.scene.scale.set(0.5, 0.5, 0.5)
 
       resolve()
     }, undefined, reject)
@@ -420,6 +455,10 @@ watch(()=> roundCfg.value?.round, ()=>{ if (status.value === 'running' && roundC
 
 onMounted(()=>{ initThree() })
 onBeforeUnmount(()=>{
+  if (onWheelHandler) {
+    renderer?.domElement?.removeEventListener('wheel', onWheelHandler as any)
+    onWheelHandler = null
+  }  
   cancelAnimationFrame(frameId)
   window.removeEventListener('resize', onResize)
   renderer?.dispose()
