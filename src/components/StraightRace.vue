@@ -31,7 +31,6 @@ const LANE_GAP = 0.7
 let BASE_LIFT_Y = 0  // tüm atlara uygulanacak sabit yer-ofseti
 
 // ileri yön ayarı: modelin gerçek "ileri" ekseni (GLB'ine göre)
-// çoğu model kameraya bakıyorsa -Z, bazıları +Z olur. Gerekirse değiştir.
 const MODEL_FWD = new THREE.Vector3(0,0,1)
 const ROT_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0))
 
@@ -49,8 +48,8 @@ let baseGltf: { scene: THREE.Object3D, animations: THREE.AnimationClip[] } | nul
 let mixers: Record<number, THREE.AnimationMixer> = {}
 let actions: Record<number, THREE.AnimationAction> = {}
 let timeScales: Record<number, number> = {}
+let horseLabels: Record<number, CSS2DObject> = {}
 
-// yardımcılar
 const _box = new THREE.Box3()
 function setOnGround(obj: THREE.Object3D, yPad = 0.01) {
   _box.setFromObject(obj)
@@ -75,7 +74,9 @@ function attachLabel(target: THREE.Object3D, numText: string){
   const label = new CSS2DObject(div)
   label.position.set(0, h / 3, 0)
   target.add(label)
+  return label
 }
+
 function removeLabelsFrom(obj: THREE.Object3D) {
   obj.traverse((n: any) => {
     if (n instanceof CSS2DObject || n?.isCSS2DObject) {
@@ -85,6 +86,7 @@ function removeLabelsFrom(obj: THREE.Object3D) {
     }
   })
 }
+
 function removeAllSceneLabels() {
   scene.traverse((n: any) => {
     if (n instanceof CSS2DObject || n?.isCSS2DObject) {
@@ -94,6 +96,15 @@ function removeAllSceneLabels() {
     }
   })
   labelRenderer?.domElement && (labelRenderer.domElement.innerHTML = '')
+}
+
+function detachAndDisposeLabel(lbl: CSS2DObject | undefined) {
+  if (!lbl) return
+  // 3B sahneden çıkar
+  lbl.removeFromParent()
+  // DOM node'unu da temizle
+  const el = (lbl as any).element as HTMLElement | undefined
+  if (el && el.parentElement) el.parentElement.removeChild(el)
 }
 
 function addLights(){
@@ -107,7 +118,6 @@ function addLights(){
 }
 
 function buildStraightTrack(lanes: number){
-  // zemin
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(60, Math.max(8, lanes*LANE_GAP*3)),
     new THREE.MeshStandardMaterial({ color: 0x14301a })
@@ -118,10 +128,9 @@ function buildStraightTrack(lanes: number){
   ground.keep = true
   scene.add(ground)
 
-  // yol
   const road = new THREE.Mesh(
     new THREE.PlaneGeometry(TRACK_LEN+4, Math.max(2.4, lanes*LANE_GAP+0.6)),
-    new THREE.MeshStandardMaterial({ color: 0x333333 })
+    new THREE.MeshStandardMaterial({ color: 0xe2ca76 })
   )
   road.rotation.x = -Math.PI/2
   road.position.y = 0.01
@@ -130,7 +139,6 @@ function buildStraightTrack(lanes: number){
   road.keep = true
   scene.add(road)
 
-  // şerit çizgileri
   const linesMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
   for (let li=0; li<=lanes; li++){
     const z = ((li - lanes/2) * LANE_GAP)
@@ -142,7 +150,6 @@ function buildStraightTrack(lanes: number){
     scene.add(line)
   }
 
-  // start/finish barları
   const barMat = new THREE.MeshBasicMaterial({ color: 0xffffff })
   const startBar = new THREE.Mesh(new THREE.PlaneGeometry(0.2, lanes*LANE_GAP), barMat)
   startBar.rotation.x = -Math.PI/2
@@ -157,39 +164,6 @@ function buildStraightTrack(lanes: number){
   // @ts-ignore
   finBar.keep = true
   scene.add(finBar)
-
-  // 🟩 yeşil start bayrağı
-  const flagMatStart = new THREE.MeshStandardMaterial({ color: 0x00ff00 })
-  const flagGeo = new THREE.BoxGeometry(0.5, 0.8, 0.02)
-  const flagStart = new THREE.Mesh(flagGeo, flagMatStart)
-  flagStart.position.set(START_X - 0.3, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
-  flagStart.rotation.y = Math.PI / 2
-  // @ts-ignore
-  flagStart.keep = true
-  scene.add(flagStart)
-
-  // 🟥 kırmızı finish bayrağı
-  const flagMatEnd = new THREE.MeshStandardMaterial({ color: 0xff0000 })
-  const flagEnd = new THREE.Mesh(flagGeo, flagMatEnd)
-  flagEnd.position.set(END_X + 0.3, 0.8, (lanes * LANE_GAP) / 2 + 0.2)
-  flagEnd.rotation.y = -Math.PI / 2
-  // @ts-ignore
-  flagEnd.keep = true
-  scene.add(flagEnd)
-
-  // direkler
-  const poleGeo = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 8)
-  const poleMat = new THREE.MeshStandardMaterial({ color: 0x888888 })
-  const poleStart = new THREE.Mesh(poleGeo, poleMat)
-  poleStart.position.set(START_X - 0.3, 0.6, (lanes * LANE_GAP) / 2 + 0.2)
-  // @ts-ignore
-  poleStart.keep = true
-  scene.add(poleStart)
-  const poleEnd = new THREE.Mesh(poleGeo, poleMat)
-  poleEnd.position.set(END_X + 0.3, 0.6, (lanes * LANE_GAP) / 2 + 0.2)
-  // @ts-ignore
-  poleEnd.keep = true
-  scene.add(poleEnd)
 }
 
 function initThree(){
@@ -223,45 +197,29 @@ function initThree(){
   controls.update()
 
   addLights()
-  buildStraightTrack( (roundCfg.value?.horses.length ?? 10) )
-
+  buildStraightTrack((roundCfg.value?.horses.length ?? 10))
   attachFixedWheelZoom()
 
   window.addEventListener('resize', onResize)
   animate()
 }
+
 let onWheelHandler: ((ev: WheelEvent) => void) | null = null
 const ZOOM_UNITS_PER_NOTCH = 0.01
 function attachFixedWheelZoom() {
   if (!renderer || !camera || !controls) return
 
   const onWheel = (ev: WheelEvent) => {
-    // Delta’yı sınırlayıp tekdüze bir adım elde ediyoruz
     const d = THREE.MathUtils.clamp(ev.deltaY, -200, 200)
     const step = -d * ZOOM_UNITS_PER_NOTCH
-
-    // Kameranın baktığı doğrultuda ileri/geri hareket
     const dir = new THREE.Vector3()
     camera.getWorldDirection(dir).normalize()
     const move = dir.multiplyScalar(step)
-
     camera.position.add(move)
     controls.target.add(move)
     controls.update()
-
-    // (opsiyonel) etiket/gösterge güncellemelerin varsa burada çağır
-    // updateLabelPositions()
-    // updateLabelScales()
-    // updateSpeedLabelPositions()
-    // updateSpeedLabelScales()
-
-    // render döngün sürekli çalışmıyorsa tek kare çiz:
-    // renderer.render(scene, camera)
-
-    // trackpad/scroll geri kaymasını engelle
     ev.preventDefault()
   }
-
   renderer.domElement.addEventListener('wheel', onWheel, { passive: false })
   onWheelHandler = onWheel
 }
@@ -277,13 +235,11 @@ function onResize(){
 }
 
 function clearRound(){
-  // animasyonları kapat
   Object.values(actions).forEach(a=> a?.stop())
   Object.values(mixers).forEach(m=> m.stopAllAction())
   actions = {}
   mixers = {}
 
-  // etiketleri ve atları sök
   Object.values(horseObjs).forEach(o => removeLabelsFrom(o))
   Object.values(horseObjs).forEach(o => scene.remove(o))
   horseObjs = {}
@@ -291,8 +247,6 @@ function clearRound(){
   durations = {}
   finished = new Set()
   runningRound = -1
-
-  // sızan label varsa temizle
   removeAllSceneLabels()
 }
 
@@ -303,7 +257,6 @@ function preloadHorse(): Promise<void> {
       baseGltf = { scene: gltf.scene, animations: gltf.animations || [] }
       gltf.scene.traverse((c:any)=>{ if (c.isMesh) { c.castShadow = true; c.receiveShadow = true } })
       baseGltf.scene.scale.set(0.5, 0.5, 0.5)
-
       resolve()
     }, undefined, reject)
   })
@@ -312,8 +265,6 @@ function preloadHorse(): Promise<void> {
 function spawnHorses(ids: number[]){
   clearRound()
   const lanes = ids.length
-
-  // Pisti koru (keep:true) – sahneyi tazele
   scene.children = scene.children.filter((obj:any)=> obj.keep === true)
   addLights()
 
@@ -321,31 +272,29 @@ function spawnHorses(ids: number[]){
     ids.forEach((id, i)=>{
       const horse = SkeletonUtils.clone(baseGltf!.scene) as THREE.Object3D
       const z = (i - (lanes-1)/2) * LANE_GAP
-        horse.position.set(START_X, BASE_LIFT_Y, z)   // ← sabit
-        scene.add(horse)
-        attachLabel(horse, String(id))
-        horseObjs[id] = horse
+      horse.position.set(START_X, BASE_LIFT_Y, z)
+      scene.add(horse)
+      const lbl = attachLabel(horse, String(id))
+      horseLabels[id] = lbl
+      horseObjs[id] = horse
 
-        const quatToX = new THREE.Quaternion()
-  .setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
-  .multiply(ROT_FIX)
-horse.quaternion.copy(quatToX)
+      const quatToX = new THREE.Quaternion()
+        .setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
+        .multiply(ROT_FIX)
+      horse.quaternion.copy(quatToX)
 
-      // Mixer + Action
       const mixer = new THREE.AnimationMixer(horse)
       mixers[id] = mixer
-
       const clips = baseGltf!.animations || []
-      let clip =
-        THREE.AnimationClip.findByName(clips, 'Run') ||
-        THREE.AnimationClip.findByName(clips, 'Gallop') ||
-        clips[0]
+      let clip = THREE.AnimationClip.findByName(clips, 'Run') ||
+                 THREE.AnimationClip.findByName(clips, 'Gallop') ||
+                 clips[0]
 
       if (clip) {
         const action = mixer.clipAction(clip)
         action.setLoop(THREE.LoopRepeat)
         const cond = horses.value.find(h=>h.id===id)?.condition ?? 50
-        timeScales[id] = 0.9 + (cond/100) * 0.6 // 0.9..1.5
+        timeScales[id] = 0.9 + (cond/100) * 0.6
         action.play()
         actions[id] = action
       }
@@ -353,15 +302,15 @@ horse.quaternion.copy(quatToX)
     return
   }
 
-  // GLB yoksa kapsül fallback (tek renk, labels with id)
   const geom = new THREE.CapsuleGeometry(0.25, 0.7, 6, 12)
   const mat = new THREE.MeshStandardMaterial({ color: 0xdddddd })
   ids.forEach((id, i)=>{
     const z = (i - (lanes-1)/2) * LANE_GAP
-    // kapsülün boyuna göre küçük sabit: 0.35 iyi durur
+    const mesh = new THREE.Mesh(geom, mat)
     mesh.position.set(START_X, 0.35, z)
     scene.add(mesh)
-    attachLabel(mesh, String(id))
+    const lbl = attachLabel(mesh, String(id))
+    horseLabels[id] = lbl
     horseObjs[id] = mesh
   })
 }
@@ -372,7 +321,6 @@ function computeDurations(distance: number, ids: number[]){
     const speed = Math.max(10, 14 + (cond/100)*2 + (Math.random()*1.2-0.6))
     const timeSec = distance / speed
     durations[id] = Math.round(timeSec * 1000)
-    // anim tempo:
     timeScales[id] = 0.9 + (cond/100) * 0.6
   })
 }
@@ -380,7 +328,6 @@ function computeDurations(distance: number, ids: number[]){
 function animate(){
   frameId = requestAnimationFrame(animate)
   const dt = clock.getDelta()
-  // mixer'ları güncelle
   Object.entries(mixers).forEach(([sid, mixer])=>{
     const id = Number(sid)
     const a = actions[id]
@@ -394,20 +341,30 @@ function animate(){
     ids.forEach((id)=>{
       const obj = horseObjs[id]; if (!obj) return
       const dur = durations[id] || 1
-      const t = Math.min(1, (now - startTime) / dur)
+      const t = Math.min(1, (now - startTime) / (dur / 4))
       const x = THREE.MathUtils.lerp(START_X, END_X, t)
       obj.position.x = x
-
-      // açı zaten spawn’da kilitleniyor; istersen slerp yerine sabit:
-      // const quatToX = new THREE.Quaternion().setFromUnitVectors(MODEL_FWD, new THREE.Vector3(1,0,0))
-      // quatToX.multiply(ROT_FIX)
-      // obj.quaternion.copy(quatToX)
 
       if (t >= 1 && !finished.has(id)){
         finished.add(id)
         actions[id]?.fadeOut(0.2)
+        const lbl = horseLabels[id]
+        detachAndDisposeLabel(lbl)
+        delete horseLabels[id]
+
+        scene.remove(obj)            // atı sahneden çıkar
+        obj.traverse((n:any)=>{      // emniyet: objeye bağlı başka label varsa
+          if (n?.isCSS2DObject) detachAndDisposeLabel(n as CSS2DObject)
+        })
+
+        // her bitiren at için anında sonuç ekle
+        store.commit('UPSERT_ROUND_RESULT', {
+          round: roundCfg.value.round,
+          distance: roundCfg.value.distance,
+          finish: { horseId: id, timeMs: now - startTime }
+        })
+
         if (finished.size === ids.length){
-          // tüm atlar bitirdi: animleri kapat, temizle, bir sonraki raunda geç
           Object.values(actions).forEach(a=> a?.fadeOut(0.3))
           Object.values(mixers).forEach(m=> m.stopAllAction())
           actions = {}
@@ -416,9 +373,11 @@ function animate(){
           Object.values(horseObjs).forEach(o => scene.remove(o))
           horseObjs = {}
 
-          const finishes = ids.map(hid => ({ horseId: hid, timeMs: durations[hid] })).sort((a,b)=>a.timeMs-b.timeMs)
-          store.commit('APPEND_RESULT', { round: roundCfg.value.round, distance: roundCfg.value.distance, finishes })
+          const finishes = ids.map(hid => ({ horseId: hid, timeMs: durations[hid] }))
+                              .sort((a,b)=>a.timeMs-b.timeMs)
+          store.commit('FINALIZE_ROUND_RESULT', { round: roundCfg.value.round, distance: roundCfg.value.distance })
           store.commit('ADVANCE_ROUND')
+
           if (store.state.currentRound >= store.state.schedule.length){
             store.commit('SET_STATUS', 'finished')
           } else {
@@ -432,6 +391,7 @@ function animate(){
       }
     })
   }
+
   controls.update()
   renderer.render(scene, camera)
   labelRenderer.render(scene, camera)
@@ -439,11 +399,9 @@ function animate(){
 
 async function startVisualRound(){
   if (!roundCfg.value) return
-  await preloadHorse().catch(()=>{}) // model yoksa kapsül fallback
-  // şeritleri turdaki at sayısına göre yenile
+  await preloadHorse().catch(()=>{})
   scene.children = scene.children.filter((obj:any)=> obj.keep === true)
   buildStraightTrack(roundCfg.value.horses.length)
-
   spawnHorses(roundCfg.value.horses)
   computeDurations(roundCfg.value.distance, roundCfg.value.horses)
   startTime = performance.now()
@@ -458,7 +416,7 @@ onBeforeUnmount(()=>{
   if (onWheelHandler) {
     renderer?.domElement?.removeEventListener('wheel', onWheelHandler as any)
     onWheelHandler = null
-  }  
+  }
   cancelAnimationFrame(frameId)
   window.removeEventListener('resize', onResize)
   renderer?.dispose()

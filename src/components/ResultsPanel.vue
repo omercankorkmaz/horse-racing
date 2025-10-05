@@ -12,11 +12,11 @@ const nameOf = (id:number)=> horses.value.find(h=>h.id===id)?.name || `#${id}`
   <article>
     <h3>Sonuçlar</h3>
     <div class="results">
-      <details v-for="r in results" :key="r.round">
-        <summary>Round {{ r.round }} — {{ r.distance }} m</summary>
-        <ol>
+      <details v-for="r in results" :key="r.round" open>
+        <summary>{{ r.distance }}m</summary>
+        <ol style="padding-left: 0.25rem;">
           <li v-for="f in r.finishes" :key="f.horseId">
-            {{ nameOf(f.horseId) }} — {{ (f.timeMs/1000).toFixed(2) }} s
+            <span style="font-weight: 700;">H{{ f.horseId }}:</span> {{ (f.timeMs/1000).toFixed(2) }} s
           </li>
         </ol>
       </details>

@@ -53,7 +53,7 @@ p {
 
 /* Sonuç paneli kaydırma alanı */
 .results {
-  max-height: clamp(240px, 55vh, 560px);
+  /* max-height: clamp(240px, 55vh, 560px); */
   overflow: auto;
   border: 1px solid var(--pico-muted-border-color);
   border-radius: .5rem;

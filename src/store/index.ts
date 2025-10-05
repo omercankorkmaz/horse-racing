@@ -41,7 +41,28 @@ export const store = createStore<State>({
     SET_STATUS(s, status: State['status']) { s.status = status },
     APPEND_RESULT(s, res: RaceResult) { s.results.push(res) },
     ADVANCE_ROUND(s) { s.currentRound += 1 },
-    SET_PAUSED(s, v: boolean) { s.paused = v }
+    SET_PAUSED(s, v: boolean) { s.paused = v },
+    ADD_RESULT(state, payload) { state.results.push(payload)},
+    UPSERT_ROUND_RESULT(s, payload: { round: number; distance: number; finish: { horseId:number; timeMs:number } }) {
+      const { round, distance, finish } = payload
+      // mevcut round sonucu var mı?
+      let rec = s.results.find(r => r.round === round && r.distance === distance)
+      if (!rec) {
+        rec = { round, distance, finishes: [] }
+        s.results.push(rec)
+      }
+      // aynı at için tekrar eklemesin
+      if (!rec.finishes.some(f => f.horseId === finish.horseId)) {
+        rec.finishes.push(finish)
+        // canlı sıralama
+        rec.finishes.sort((a,b)=> a.timeMs - b.timeMs)
+      }
+    },
+
+    // (İsteğe bağlı) round tamamlandığında final “seal” etmek istersen:
+    FINALIZE_ROUND_RESULT(s, payload: { round:number; distance:number }) {
+      // şu anlık boş — ileride “tamamlandı” flag’i koymak istersen kullan
+    }
   },
   actions: {
     generate({ commit }) {
