@@ -9,6 +9,7 @@ import {
   CSS2DObject,
 } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { Horse } from '../types';
 
 const container = ref<HTMLDivElement | null>(null);
 const store = useStore();
@@ -53,7 +54,9 @@ let horseLabels: Record<number, CSS2DObject> = {};
 const _box = new THREE.Box3();
 
 function attachLabel(target: THREE.Object3D, numText: string) {
-  const color = horses.value.find((h) => h.id === Number(numText))?.color;
+  const color = horses.value.find(
+    (h: Horse) => h.id === Number(numText),
+  )?.color;
   const div = document.createElement('div');
   div.textContent = numText;
   div.style.padding = '2px 6px';
@@ -117,6 +120,7 @@ function buildStraightTrack(lanes: number) {
   );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
+  // @ts-ignore
   ground.keep = true;
   scene.add(ground);
 
@@ -130,6 +134,7 @@ function buildStraightTrack(lanes: number) {
   road.rotation.x = -Math.PI / 2;
   road.position.y = 0.01;
   road.receiveShadow = true;
+  // @ts-ignore
   road.keep = true;
   scene.add(road);
 
@@ -142,6 +147,7 @@ function buildStraightTrack(lanes: number) {
     );
     line.rotation.x = -Math.PI / 2;
     line.position.set(0, 0.015, z);
+    // @ts-ignore
     line.keep = true;
     scene.add(line);
   }
@@ -153,6 +159,7 @@ function buildStraightTrack(lanes: number) {
   );
   startBar.rotation.x = -Math.PI / 2;
   startBar.position.set(START_X, 0.02, 0);
+  // @ts-ignore
   startBar.keep = true;
   scene.add(startBar);
 
@@ -162,6 +169,7 @@ function buildStraightTrack(lanes: number) {
   );
   finBar.rotation.x = -Math.PI / 2;
   finBar.position.set(END_X, 0.02, 0);
+  // @ts-ignore
   finBar.keep = true;
   scene.add(finBar);
 }
@@ -306,8 +314,10 @@ function spawnHorses(ids: number[]) {
 
       if (clip) {
         const action = mixer.clipAction(clip);
+        // @ts-ignore
         action.setLoop(THREE.LoopRepeat);
-        const cond = horses.value.find((h) => h.id === id)?.condition ?? 50;
+        const cond =
+          horses.value.find((h: Horse) => h.id === id)?.condition ?? 50;
         timeScales[id] = 0.9 + (cond / 100) * 0.6;
         action.play();
         actions[id] = action;
@@ -331,7 +341,7 @@ function spawnHorses(ids: number[]) {
 
 function computeDurations(distance: number, ids: number[]) {
   ids.forEach((id) => {
-    const cond = horses.value.find((h) => h.id === id)?.condition ?? 50;
+    const cond = horses.value.find((h: Horse) => h.id === id)?.condition ?? 50;
     const speed = Math.max(
       10,
       14 + (cond / 100) * 2 + (Math.random() * 1.2 - 0.6),
@@ -355,7 +365,7 @@ function animate() {
   const now = performance.now();
   if (runningRound > 0 && roundCfg.value && status.value === 'running') {
     const ids = roundCfg.value.horses;
-    ids.forEach((id) => {
+    ids.forEach((id: number) => {
       const obj = horseObjs[id];
       if (!obj) return;
       const dur = durations[id] || 1;

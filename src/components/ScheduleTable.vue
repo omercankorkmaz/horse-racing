@@ -1,10 +1,12 @@
 <script lang="ts" setup>
 import { computed } from 'vue';
 import { useStore } from 'vuex';
+import { Horse } from '../types';
 const store = useStore();
 const schedule = computed(() => store.state.schedule);
 const horses = computed(() => store.state.horses);
-const colorOf = (id: number) => horses.value.find((h) => h.id === id)?.color;
+const colorOf = (id: number) =>
+  horses.value.find((h: Horse) => h.id === id)?.color;
 </script>
 
 <template>
