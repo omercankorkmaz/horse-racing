@@ -16,8 +16,8 @@ const colorOf = (id: number) =>
         <thead>
           <tr>
             <th>Round</th>
-            <th>Mesafe</th>
-            <th>Atlar</th>
+            <th>Distance</th>
+            <th>Horses</th>
           </tr>
         </thead>
         <tbody>

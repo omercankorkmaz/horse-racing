@@ -7,7 +7,7 @@ const results = computed(() => store.state.results);
 
 <template>
   <article>
-    <h3>Sonuçlar</h3>
+    <h3>Results</h3>
     <div class="results">
       <details v-for="r in results" :key="r.round" open>
         <summary>{{ r.distance }}m</summary>

@@ -17,7 +17,7 @@ const horses = computed(() => store.state.horses);
       class="contrast"
       style="padding: 0.75rem; border-radius: 0.5rem"
     >
-      Atlar henüz oluşturulmadı. <em>Generate</em> ile üret.
+      Horses not yet created.
     </div>
 
     <table v-else role="grid">

@@ -16,6 +16,10 @@ const store = useStore();
 const roundCfg = computed(() => store.getters.currentRoundConfig);
 const horses = computed(() => store.state.horses);
 const status = computed(() => store.state.status);
+const paused = computed(() => store.state.paused);
+
+let raceElapsed = 0;
+let lastNow = 0;
 
 let renderer: THREE.WebGLRenderer;
 let labelRenderer: CSS2DRenderer;
@@ -35,12 +39,10 @@ const MODEL_FWD = new THREE.Vector3(0, 0, 1);
 const ROT_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0));
 
 let horseObjs: Record<number, THREE.Object3D> = {};
-let startTime = 0;
 let durations: Record<number, number> = {};
 let finished: Set<number> = new Set();
 let runningRound = -1;
 
-const clock = new THREE.Clock();
 const loader = new GLTFLoader();
 let baseGltf: {
   scene: THREE.Object3D;
@@ -354,22 +356,30 @@ function computeDurations(distance: number, ids: number[]) {
 
 function animate() {
   frameId = requestAnimationFrame(animate);
-  const dt = clock.getDelta();
-  Object.entries(mixers).forEach(([sid, mixer]) => {
-    const id = Number(sid);
-    const a = actions[id];
-    if (a) a.timeScale = timeScales[id] ?? 1;
-    mixer.update(dt);
-  });
-
   const now = performance.now();
+  let dt = now - lastNow;
+  lastNow = now;
+  if (dt > 50) dt = 50;
+
+  if (!paused.value) {
+    raceElapsed += dt;
+    const dtSec = dt / 1000;
+    Object.entries(mixers).forEach(([sid, mixer]) => {
+      const id = Number(sid);
+      const a = actions[id];
+      if (a) a.timeScale = timeScales[id] ?? 1;
+      mixer.update(dtSec);
+    });
+  }
+
   if (runningRound > 0 && roundCfg.value && status.value === 'running') {
     const ids = roundCfg.value.horses;
     ids.forEach((id: number) => {
       const obj = horseObjs[id];
       if (!obj) return;
       const dur = durations[id] || 1;
-      const t = Math.min(1, (now - startTime) / (dur / 4));
+      const effectiveDur = dur / 4;
+      const t = Math.min(1, raceElapsed / effectiveDur);
       const x = THREE.MathUtils.lerp(START_X, END_X, t);
       obj.position.x = x;
 
@@ -388,7 +398,7 @@ function animate() {
         store.commit('UPSERT_ROUND_RESULT', {
           round: roundCfg.value.round,
           distance: roundCfg.value.distance,
-          finish: { horseId: id, timeMs: now - startTime },
+          finish: { horseId: id, timeMs: raceElapsed },
         });
 
         if (finished.size === ids.length) {
@@ -412,8 +422,9 @@ function animate() {
             const next = store.getters.currentRoundConfig;
             spawnHorses(next.horses);
             computeDurations(next.distance, next.horses);
-            startTime = performance.now();
             runningRound = next.round;
+            raceElapsed = 0;
+            lastNow = performance.now();
           }
         }
       }
@@ -432,8 +443,9 @@ async function startVisualRound() {
   buildStraightTrack(roundCfg.value.horses.length);
   spawnHorses(roundCfg.value.horses);
   computeDurations(roundCfg.value.distance, roundCfg.value.horses);
-  startTime = performance.now();
   runningRound = roundCfg.value.round;
+  raceElapsed = 0;
+  lastNow = performance.now();
 }
 
 watch(

@@ -78,7 +78,6 @@ export const store = createStore<State>({
       },
     ) {
       const { round, distance, finish } = payload;
-      // mevcut round sonucu var mı?
       let rec = s.results.find(
         (r) => r.round === round && r.distance === distance,
       );
@@ -86,10 +85,8 @@ export const store = createStore<State>({
         rec = { round, distance, finishes: [] };
         s.results.push(rec);
       }
-      // aynı at için tekrar eklemesin
       if (!rec.finishes.some((f) => f.horseId === finish.horseId)) {
         rec.finishes.push(finish);
-        // canlı sıralama
         rec.finishes.sort((a, b) => a.timeMs - b.timeMs);
       }
     },
