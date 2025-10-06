@@ -2,7 +2,7 @@
 import Controls from './components/Controls.vue';
 import ScheduleTable from './components/ScheduleTable.vue';
 import ResultsPanel from './components/ResultsPanel.vue';
-import StraightRace from './components/StraightRace.vue';
+import Race from './components/Race.vue';
 import GeneratedHorses from './components/GeneratedHorses.vue';
 </script>
 
@@ -15,7 +15,7 @@ import GeneratedHorses from './components/GeneratedHorses.vue';
       </aside>
       <section style="height: 100%; overflow: auto">
         <Controls />
-        <StraightRace />
+        <Race />
         <ScheduleTable style="margin-top: 1rem" />
       </section>
       <aside style="height: 100%; overflow: auto">
