@@ -22,26 +22,22 @@ let camera: THREE.PerspectiveCamera
 let controls: OrbitControls
 let frameId = 0
 
-// düz pist parametreleri
 const TRACK_LEN = 40
 const START_X = -TRACK_LEN/2
 const END_X   =  TRACK_LEN/2
 const LANE_GAP = 0.7
 
-let BASE_LIFT_Y = 0  // tüm atlara uygulanacak sabit yer-ofseti
+let BASE_LIFT_Y = 0
 
-// ileri yön ayarı: modelin gerçek "ileri" ekseni (GLB'ine göre)
 const MODEL_FWD = new THREE.Vector3(0,0,1)
 const ROT_FIX = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0))
 
-// durumlar
 let horseObjs: Record<number, THREE.Object3D> = {}
 let startTime = 0
 let durations: Record<number, number> = {}
 let finished: Set<number> = new Set()
 let runningRound = -1
 
-// animasyon yapısı
 const clock = new THREE.Clock()
 const loader = new GLTFLoader()
 let baseGltf: { scene: THREE.Object3D, animations: THREE.AnimationClip[] } | null = null
@@ -51,11 +47,6 @@ let timeScales: Record<number, number> = {}
 let horseLabels: Record<number, CSS2DObject> = {}
 
 const _box = new THREE.Box3()
-function setOnGround(obj: THREE.Object3D, yPad = 0.01) {
-  _box.setFromObject(obj)
-  const lift = -_box.min.y + yPad
-  obj.position.y = lift
-}
 
 function attachLabel(target: THREE.Object3D, numText: string){
   const color = horses.value.find(h=>h.id=== Number(numText))?.color
@@ -100,9 +91,7 @@ function removeAllSceneLabels() {
 
 function detachAndDisposeLabel(lbl: CSS2DObject | undefined) {
   if (!lbl) return
-  // 3B sahneden çıkar
   lbl.removeFromParent()
-  // DOM node'unu da temizle
   const el = (lbl as any).element as HTMLElement | undefined
   if (el && el.parentElement) el.parentElement.removeChild(el)
 }
@@ -124,7 +113,6 @@ function buildStraightTrack(lanes: number){
   )
   ground.rotation.x = -Math.PI/2
   ground.receiveShadow = true
-  // @ts-ignore
   ground.keep = true
   scene.add(ground)
 
@@ -135,7 +123,6 @@ function buildStraightTrack(lanes: number){
   road.rotation.x = -Math.PI/2
   road.position.y = 0.01
   road.receiveShadow = true
-  // @ts-ignore
   road.keep = true
   scene.add(road)
 
@@ -145,7 +132,6 @@ function buildStraightTrack(lanes: number){
     const line = new THREE.Mesh(new THREE.PlaneGeometry(TRACK_LEN+4, 0.03), linesMat)
     line.rotation.x = -Math.PI/2
     line.position.set(0, 0.015, z)
-    // @ts-ignore
     line.keep = true
     scene.add(line)
   }
@@ -154,14 +140,12 @@ function buildStraightTrack(lanes: number){
   const startBar = new THREE.Mesh(new THREE.PlaneGeometry(0.2, lanes*LANE_GAP), barMat)
   startBar.rotation.x = -Math.PI/2
   startBar.position.set(START_X, 0.02, 0)
-  // @ts-ignore
   startBar.keep = true
   scene.add(startBar)
 
   const finBar = new THREE.Mesh(new THREE.PlaneGeometry(0.2, lanes*LANE_GAP), barMat)
   finBar.rotation.x = -Math.PI/2
   finBar.position.set(END_X, 0.02, 0)
-  // @ts-ignore
   finBar.keep = true
   scene.add(finBar)
 }
@@ -178,7 +162,6 @@ function initThree(){
   renderer.setSize(container.value!.clientWidth, container.value!.clientHeight)
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.shadowMap.enabled = true
-  // @ts-ignore
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   labelRenderer = new CSS2DRenderer()
@@ -352,12 +335,11 @@ function animate(){
         detachAndDisposeLabel(lbl)
         delete horseLabels[id]
 
-        scene.remove(obj)            // atı sahneden çıkar
-        obj.traverse((n:any)=>{      // emniyet: objeye bağlı başka label varsa
+        scene.remove(obj)
+        obj.traverse((n:any)=>{
           if (n?.isCSS2DObject) detachAndDisposeLabel(n as CSS2DObject)
         })
 
-        // her bitiren at için anında sonuç ekle
         store.commit('UPSERT_ROUND_RESULT', {
           round: roundCfg.value.round,
           distance: roundCfg.value.distance,
@@ -372,9 +354,7 @@ function animate(){
           removeAllSceneLabels()
           Object.values(horseObjs).forEach(o => scene.remove(o))
           horseObjs = {}
-
-          const finishes = ids.map(hid => ({ horseId: hid, timeMs: durations[hid] }))
-                              .sort((a,b)=>a.timeMs-b.timeMs)
+          
           store.commit('FINALIZE_ROUND_RESULT', { round: roundCfg.value.round, distance: roundCfg.value.distance })
           store.commit('ADVANCE_ROUND')
 
@@ -425,10 +405,6 @@ onBeforeUnmount(()=>{
 
 <template>
   <article>
-    <header>
-      <h3>Düz Pist (Çok Şeritli)</h3>
-      <p>GLB animasyonlu atlar soldan sağa koşar. Etiket: sadece numara.</p>
-    </header>
     <div ref="container" style="position:relative;width:100%;height:420px;border-radius:12px;overflow:hidden;border:1px solid var(--pico-muted-border-color)"></div>
   </article>
 </template>

@@ -8,18 +8,18 @@ import GeneratedHorses from './components/GeneratedHorses.vue'
 </script>
 
 <template>
-  <main class="container">
-    <h1>Horse Racing Game</h1>
-    <div class="grid">
-      <aside>
+  <main class="container" style="height: 100vh">
+    <h1 style="height: 5vh">Horse Racing Game</h1>
+    <div class="grid" style="height: 92vh">
+      <aside style="height: 100%; overflow: auto;">
         <GeneratedHorses />
       </aside>
-      <section>
+      <section style="height: 100%; overflow: auto;">
         <Controls />
         <StraightRace />
         <ScheduleTable style="margin-top:1rem;" />
       </section>
-      <aside>
+      <aside style="height: 100%; overflow: auto;">
         <ResultsPanel />
       </aside>
     </div>

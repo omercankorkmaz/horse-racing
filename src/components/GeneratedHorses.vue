@@ -4,15 +4,6 @@ import { useStore } from 'vuex'
 
 const store = useStore()
 const horses = computed(()=> store.state.horses)
-
-// küçük bir condition sınıflayıcı (görsel ipucu)
-function condBadge(c: number) {
-  if (c >= 80) return 'success'
-  if (c >= 60) return 'primary'
-  if (c >= 40) return 'secondary'
-  if (c >= 20) return 'warning'
-  return 'contrast'
-}
 </script>
 
 <template>
@@ -28,23 +19,19 @@ function condBadge(c: number) {
     <table v-else role="grid">
       <thead>
         <tr>
-          <th>Ad</th>
-          <th style="width:140px;">Condition</th>
-          <th style="width:160px;">Renk</th>
+          <th>Name</th>
+          <th style="width:140px;">Cond.</th>
+          <th style="width:160px;">Color</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="h in horses" :key="h.id">
-          <td>{{ h.name }}</td>
+          <td>H{{ h.id }}</td>
           <td>
-            <span :class="condBadge(h.condition)" class="badge">
-              {{ h.condition }}
-            </span>
+            {{ h.condition }}
           </td>
           <td>
-            <div style="display:flex;align-items:center;gap:.5rem;justify-content: center;">
-              <span :style="{display:'inline-block',width:'20px',height:'20px',borderRadius:'4px',border:'1px solid var(--pico-muted-border-color)', background:h.color}"></span>
-            </div>
+            <span :style="{display:'inline-block',width:'20px',height:'20px',borderRadius:'4px',border:'1px solid var(--pico-muted-border-color)', background:h.color}"></span>
           </td>
         </tr>
       </tbody>

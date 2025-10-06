@@ -1,7 +1,10 @@
+html {
+  font-size: 14px;
+}
 /* Konteyner */
 .container {
   --gutter: 1rem;
-  max-width: calc(100% - 20vw);
+  max-width: calc(100% - 10vw);
   margin: 0 auto;
   padding: var(--gutter);
 }
@@ -63,7 +66,7 @@ p {
 
 /* Tablo görünümü (HorsesTable, ScheduleTable) */
 table[role="grid"] {
-  font-size: .95rem;
+  /* font-size: .75rem; */
 }
 table[role="grid"] td,
 table[role="grid"] th {
