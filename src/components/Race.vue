@@ -267,7 +267,7 @@ function preloadHorse(): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     if (baseGltf) return resolve();
     loader.load(
-      'src/models/horse.glb',
+      'models/horse.glb',
       (gltf) => {
         baseGltf = { scene: gltf.scene, animations: gltf.animations || [] };
         gltf.scene.traverse((c: any) => {
