@@ -1,0 +1,1 @@
+Place your horse.glb model here as 'horse.glb'.

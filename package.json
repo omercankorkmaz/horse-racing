@@ -8,9 +8,6 @@
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest --run",
-    "test:ui": "vitest",
-    "e2e": "cypress run",
-    "e2e:open": "cypress open",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
