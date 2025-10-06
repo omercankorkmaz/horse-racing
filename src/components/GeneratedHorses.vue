@@ -1,9 +1,9 @@
 <script lang="ts" setup>
-import { computed } from 'vue'
-import { useStore } from 'vuex'
+import { computed } from 'vue';
+import { useStore } from 'vuex';
 
-const store = useStore()
-const horses = computed(()=> store.state.horses)
+const store = useStore();
+const horses = computed(() => store.state.horses);
 </script>
 
 <template>
@@ -12,7 +12,11 @@ const horses = computed(()=> store.state.horses)
       <h3>Horse List</h3>
     </header>
 
-    <div v-if="!horses.length" class="contrast" style="padding:.75rem;border-radius:.5rem;">
+    <div
+      v-if="!horses.length"
+      class="contrast"
+      style="padding: 0.75rem; border-radius: 0.5rem"
+    >
       Atlar henüz oluşturulmadı. <em>Generate</em> ile üret.
     </div>
 
@@ -20,8 +24,8 @@ const horses = computed(()=> store.state.horses)
       <thead>
         <tr>
           <th>Name</th>
-          <th style="width:140px;">Cond.</th>
-          <th style="width:160px;">Color</th>
+          <th style="width: 140px">Cond.</th>
+          <th style="width: 160px">Color</th>
         </tr>
       </thead>
       <tbody>
@@ -31,7 +35,16 @@ const horses = computed(()=> store.state.horses)
             {{ h.condition }}
           </td>
           <td>
-            <span :style="{display:'inline-block',width:'20px',height:'20px',borderRadius:'4px',border:'1px solid var(--pico-muted-border-color)', background:h.color}"></span>
+            <span
+              :style="{
+                display: 'inline-block',
+                width: '20px',
+                height: '20px',
+                borderRadius: '4px',
+                border: '1px solid var(--pico-muted-border-color)',
+                background: h.color,
+              }"
+            ></span>
           </td>
         </tr>
       </tbody>

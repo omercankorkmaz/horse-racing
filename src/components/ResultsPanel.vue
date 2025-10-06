@@ -1,11 +1,8 @@
-
 <script lang="ts" setup>
-import { computed } from 'vue'
-import { useStore } from 'vuex'
-const store = useStore()
-const results = computed(()=> store.state.results)
-const horses = computed(()=> store.state.horses)
-const nameOf = (id:number)=> horses.value.find(h=>h.id===id)?.name || `#${id}`
+import { computed } from 'vue';
+import { useStore } from 'vuex';
+const store = useStore();
+const results = computed(() => store.state.results);
 </script>
 
 <template>
@@ -14,9 +11,10 @@ const nameOf = (id:number)=> horses.value.find(h=>h.id===id)?.name || `#${id}`
     <div class="results">
       <details v-for="r in results" :key="r.round" open>
         <summary>{{ r.distance }}m</summary>
-        <ol style="padding-left: 0.25rem;">
+        <ol style="padding-left: 0.25rem">
           <li v-for="f in r.finishes" :key="f.horseId">
-            <span style="font-weight: 700;">H{{ f.horseId }}:</span> {{ (f.timeMs/1000).toFixed(2) }} s
+            <span style="font-weight: 700">H{{ f.horseId }}:</span>
+            {{ (f.timeMs / 1000).toFixed(2) }} s
           </li>
         </ol>
       </details>
